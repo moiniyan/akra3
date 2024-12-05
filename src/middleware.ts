@@ -1,12 +1,5 @@
-import NextAuth from "next-auth"
-
-import authConfig from "@/config/auth"
-import {
-  DEFAULT_SIGNIN_REDIRECT,
-  DEFAULT_UNAUTHENTICATED_REDIRECT,
-} from "@/config/defaults"
-
-const { auth } = NextAuth(authConfig)
+import { NextRequest, NextResponse } from "next/server"
+// import { verifyToken } from "@/utils/auth" // Assume you have a utility function to verify tokens
 
 export const authRoutes = ["/logowanie", "/rejestracja", "/error"]
 export const publicRoutes = [
@@ -19,30 +12,31 @@ export const publicRoutes = [
   "/logowanie/haslo-aktualizacja",
 ]
 
-export default auth((req) => {
-  const authenticated = !!req.auth
-  const isApiAuthRoute = req.nextUrl.pathname.startsWith("/api/auth")
-  const isAuthRoute = authRoutes.includes(req.nextUrl.pathname)
-  const isPublicRoute = publicRoutes.includes(req.nextUrl.pathname)
+export default async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl
 
-  if (isApiAuthRoute) return null
+  // Allow public routes
+  if (publicRoutes.includes(pathname)) {
+    return NextResponse.next()
+  }
 
-  if (isAuthRoute) {
-    if (authenticated) {
-      return Response.redirect(new URL(DEFAULT_SIGNIN_REDIRECT, req.nextUrl))
+  // Check if the request is for an auth route
+  if (authRoutes.includes(pathname)) {
+    const token = req.cookies.get("auth-token")
+
+    if (!token) {
+      return NextResponse.redirect(new URL("/logowanie", req.url))
     }
-    return null
+
+    try {
+      // const user = await verifyToken(token)
+      // req.user = user
+      return NextResponse.next()
+    } catch (error) {
+      return NextResponse.redirect(new URL("/logowanie", req.url))
+    }
   }
 
-  if (!authenticated && !isPublicRoute) {
-    return Response.redirect(
-      new URL(DEFAULT_UNAUTHENTICATED_REDIRECT, req.nextUrl)
-    )
-  }
-
-  return null
-})
-
-export const config = {
-  matcher: ["/((?!.+\\.[\\w]+$|_next).*)", "/", "/(api|trpc)(.*)"],
+  // Default response for other routes
+  return NextResponse.next()
 }

@@ -1,13 +1,10 @@
 "use server"
 
-import crypto from 'crypto-browserify'
-
 import { unstable_noStore as noStore } from "next/cache"
 import { getUserByEmail, getUserByResetPasswordToken } from "@/actions/user"
 import { signIn } from "@/auth"
 import bcryptjs from "bcryptjs"
 import { eq } from "drizzle-orm"
-import { AuthError } from "next-auth"
 
 import { db } from "@/config/db"
 import { resend } from "@/config/email"
@@ -31,6 +28,17 @@ import { generateId } from "@/lib/utils"
 import { EmailVerificationEmail } from "@/components/emails/auth/email-verification-email"
 import { ResetPasswordEmail } from "@/components/emails/auth/reset-password-email"
 
+
+function generateToken(length: number): string {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let token = '';
+  for (let i = 0; i < length; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    token += characters[randomIndex];
+  }
+  return token;
+}
+
 export async function signUpWithPassword(
   rawInput: SignUpWithPasswordFormInput
 ): Promise<"invalid-input" | "exists" | "success" | "error"> {
@@ -42,7 +50,8 @@ export async function signUpWithPassword(
     if (user) return "exists"
 
     const passwordHash = await bcryptjs.hash(validatedInput.data.password, 10)
-    const emailVerificationToken = crypto.randomBytes(32).toString("base64url")
+    //create 32 bytes token without randomBytes function
+    const emailVerificationToken = generateToken(32)
 
     const newUser = await db
       .insert(users)
@@ -102,14 +111,7 @@ export async function signInWithPassword(
     return "success"
   } catch (error) {
     console.error(error)
-    if (error instanceof AuthError) {
-      switch (error.type) {
-        case "CredentialsSignin":
-          return "invalid-credentials"
-        default:
-          throw error
-      }
-    } else {
+    {
       throw new Error("Error signing in with password")
     }
   }
@@ -126,7 +128,7 @@ export async function resetPassword(
     if (!user) return "not-found"
 
     const today = new Date()
-    const resetPasswordToken = crypto.randomBytes(32).toString("base64url")
+    const resetPasswordToken = generateToken(32)
     const resetPasswordTokenExpiry = new Date(
       today.setDate(today.getDate() + 1)
     ) // 24 hours from now

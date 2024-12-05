@@ -24,6 +24,16 @@ import { EmailVerificationEmail } from "@/components/emails/auth/email-verificat
 import { EnquiryNotificationForArkaEmail } from "@/components/emails/contact/enquiry-notification-for-arka-email"
 import { EnquiryNotificationForCustomerEmail } from "@/components/emails/contact/enquiry-notification-for-customer-email"
 
+
+function generateToken(length: number): string {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let token = '';
+  for (let i = 0; i < length; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    token += characters[randomIndex];
+  }
+  return token;
+}
 export async function resendEmailVerificationLink(
   rawInput: EmailVerificationFormInput
 ): Promise<"invalid-input" | "not-found" | "verified" | "error" | "success"> {
@@ -35,7 +45,7 @@ export async function resendEmailVerificationLink(
     if (!user) return "not-found"
     if (user.emailVerified) return "verified"
 
-    const emailVerificationToken = crypto.randomBytes(32).toString("base64url")
+    const emailVerificationToken = generateToken(32)
 
     const userUpdated = await db
       .update(users)

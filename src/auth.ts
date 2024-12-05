@@ -1,51 +1,58 @@
-import { linkOAuthAccount } from "@/actions/auth"
-import { getUserById } from "@/actions/user"
-import { DrizzleAdapter } from "@auth/drizzle-adapter"
-import NextAuth from "next-auth"
+import { NextApiRequest, NextApiResponse } from 'next'
+import jwt from 'jsonwebtoken'
 
-import authConfig from "@/config/auth"
-import { db } from "@/config/db"
+const SECRET_KEY = process.env.AUTH_SECRET || 'your-secret-key'
 
-export const {
-  handlers: { GET, POST },
-  auth,
-  signIn,
-  signOut,
-} = NextAuth({
-  debug: process.env.NODE_ENV === "development",
-  pages: {
-    signIn: "/logowanie",
-    signOut: "/signout",
+export const handlers = {
+  GET: async (req: NextApiRequest, res: NextApiResponse) => {
+    // Implement your GET handler logic here
+    res.status(200).json({ message: 'GET handler' })
   },
-  secret: process.env.AUTH_SECRET,
-  session: {
-    strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-    updateAge: 24 * 60 * 60, // 24 hours
+  POST: async (req: NextApiRequest, res: NextApiResponse) => {
+    // Implement your POST handler logic here
+    res.status(200).json({ message: 'POST handler' })
   },
-  events: {
-    async linkAccount({ user }) {
-      if (user.id) await linkOAuthAccount({ userId: user.id })
-    },
-  },
-  callbacks: {
-    jwt({ token, user }) {
-      if (user) token.role = user.role
-      return token
-    },
-    session({ session, token }) {
-      session.user.role = token.role as "klient" | "administrator"
-      return session
-    },
-    async signIn({ user, account }) {
-      if (!user.id) return false
-      if (account?.provider !== "credentials") return true
+}
 
-      const existingUser = await getUserById({ id: user.id })
+export const auth = async (req: NextApiRequest, res: NextApiResponse) => {
+  const token = req.cookies['auth-token']
+  if (!token) {
+    res.status(401).json({ message: 'Unauthorized' })
+    return
+  }
 
-      return true
-    },
-  },
-  adapter: DrizzleAdapter(db),
-  ...authConfig,
-})
+  try {
+    const user = "";//jwt.verify(token, SECRET_KEY) as User
+    req.user = user
+    res.status(200).json({ user })
+  } catch (error) {
+    res.status(401).json({ message: 'Invalid token' })
+  }
+}
+
+export const signIn = async (req: NextApiRequest, res: NextApiResponse) => {
+  const { email, password } = req.body
+  const user = await findUserByEmailAndPassword(email, password)
+  if (!user) {
+    res.status(401).json({ message: 'Invalid credentials' })
+    return
+  }
+
+  const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, SECRET_KEY, { expiresIn: '1h' })
+  res.setHeader('Set-Cookie', `auth-token=${token}; HttpOnly; Path=/`)
+  res.status(200).json({ user })
+}
+
+export const signOut = (req: NextApiRequest, res: NextApiResponse) => {
+  res.setHeader('Set-Cookie', 'auth-token=; HttpOnly; Path=/; Max-Age=0')
+  res.status(200).json({ message: 'Signed out' })
+}
+
+async function findUserByEmailAndPassword(email: string, password: string): Promise<User | null> {
+  // Replace this with your actual user lookup logic
+  // Example:
+  if (email === 'user@example.com' && password === 'password') {
+    return { id: '1', email, name: 'Example User' }
+  }
+  return null
+}
